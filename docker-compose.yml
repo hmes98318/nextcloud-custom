@@ -1,0 +1,47 @@
+services:
+  cloud:
+    image: cloud:29.0.10
+    restart: always
+    environment:
+      TZ: "Asia/Taipei"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - nfsmount:/var/www/html/data  # nextcloud data
+      - ./overlay/config/config.php:/var/www/html/config/config.php     # nextcloud config
+      - ./overlay/php/php.ini:/usr/local/etc/php/conf.d/php.ini         # php config
+      - ./overlay/php-fpm.d/nextcloud.conf:/usr/local/etc/php-fpm.d/nextcloud.conf        # php-fpm config
+      - ./overlay/nginx/conf.d/nextcloud.http.conf:/etc/nginx/conf.d/nextcloud.http.conf  # nginx config
+    depends_on:
+      - redis
+    networks:
+      - nextcloud_network
+
+  redis:
+    image: redis:7.4.1
+    restart: always
+    environment:
+      TZ: "Asia/Taipei"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./overlay/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--appendonly", "yes"]
+    networks:
+      - nextcloud_network
+
+volumes:
+  nfsmount:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=192.168.1.112,nolock,soft,rw
+      device: ":/mnt/Data/test"
+  redis-data:
+    driver: local
+
+networks:
+  nextcloud_network:
+    driver: bridge
