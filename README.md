@@ -1,6 +1,11 @@
 # nextcloud-custom
-使用 Nextcloud 官方 image 修改的容器  
+基於 Nextcloud 官方 image 修改的容器  
 修改成自託管 Nextcloud server 所需架構  
+
+- **Web 服務**：使用 Nginx + PHP-FPM
+- **資料庫**：連接外部的 MariaDB, Redis 
+- **存儲**：Nextcloud data 使用 NFS 掛載外部存儲 server (TrueNAS CORE)
+- **進程管理**：使用 Supervisord 掛載並管理所有相關進程。
 
 
 ## License
