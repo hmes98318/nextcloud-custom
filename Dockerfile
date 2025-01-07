@@ -31,7 +31,8 @@ RUN set -eux; \
 
 
 RUN mkdir -p /var/spool/cron/crontabs; \
-    echo '*/5 * * * * php --define apc.enable_cli=1 -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
+    echo '*/5 * * * * php --define apc.enable_cli=1 -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data; \
+    echo '*/5 * * * * php /var/www/html/occ preview:pre-generate -v' >> /var/spool/cron/crontabs/www-data
 
 
 RUN set -ex; \
