@@ -140,8 +140,13 @@ RUN set -ex; \
 
 RUN rsync -a --exclude='updater' /usr/src/nextcloud/ /var/www/html/ && \
     rm -rf /usr/src/nextcloud && \
-    mkdir -p /var/www/html/nextcloud-sessions-tmp && \
-    chown -R www-data:www-data /var/www/html
+    mkdir -p \
+    /var/www/nextcloud-sessions-tmp \
+    /var/www/html/install-apps \
+    && \
+    chown -R www-data:www-data /var/www/html; \
+    chown -R www-data:www-data /var/www/nextcloud-sessions-tmp
+
 
 
 
