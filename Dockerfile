@@ -138,7 +138,8 @@ RUN set -ex; \
 # COPY ./overlay/config /usr/local/src/config/
 
 
-RUN rsync -a --exclude='updater' /usr/src/nextcloud/ /var/www/html/ && \
+RUN rm -f /var/www/html/* && \
+    rsync -a --exclude='updater' /usr/src/nextcloud/ /var/www/html/ && \
     rm -rf /usr/src/nextcloud && \
     mkdir -p \
     /var/www/nextcloud-sessions-tmp \
