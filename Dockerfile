@@ -1,7 +1,7 @@
 FROM php:8.2-fpm-bookworm
 
 
-ENV NEXTCLOUD_VERSION=29.0.10
+ENV NEXTCLOUD_VERSION=27.1.11
 
 
 # Maintenance tools
@@ -9,6 +9,7 @@ RUN apt-get update; \
     apt-get install -y \
     sudo \
     cron \
+    fail2ban \
     iputils-ping \
     procps \
     vim;
@@ -174,6 +175,10 @@ RUN chmod +x /cron.sh
 RUN mkdir -p /etc/nginx/ssl && \
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt \
     -subj "/C=US/ST=California/L=Los Angeles/O=MyCompany/CN=example.com"
+
+
+# fail2ban disable sshd
+RUN sed -i 's/enabled = true/enabled = false/g' /etc/fail2ban/jail.d/defaults-debian.conf
 
 
 
