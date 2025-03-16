@@ -178,7 +178,11 @@ RUN mkdir -p /etc/nginx/ssl && \
 
 
 # fail2ban disable sshd
-RUN sed -i 's/enabled = true/enabled = false/g' /etc/fail2ban/jail.d/defaults-debian.conf
+RUN sed -i 's/enabled = true/enabled = false/g' /etc/fail2ban/jail.d/defaults-debian.conf && \
+    rm -r /etc/fail2ban/filter.d/*
+
+COPY ./overlay/fail2ban/filter.d/nextcloud.conf /etc/fail2ban/filter.d/nextcloud.conf 
+COPY ./overlay/fail2ban/jail.d/nextcloud.local /etc/fail2ban/jail.d/nextcloud.local 
 
 
 
