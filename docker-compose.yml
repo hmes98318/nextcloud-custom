@@ -1,6 +1,6 @@
 services:
   cloud:
-    image: cloud:29.0.10
+    image: cloud:27.1.11
     restart: always
     environment:
       TZ: "Asia/Taipei"
