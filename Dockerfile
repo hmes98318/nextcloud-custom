@@ -174,7 +174,7 @@ RUN chmod +x /cron.sh
 # SSL self-signed certificate
 RUN mkdir -p /etc/nginx/ssl && \
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt \
-    -subj "/C=US/ST=California/L=Los Angeles/O=MyCompany/CN=example.com"
+    -subj "/C=TW/ST=Taipei/L=Taipei/O=Nextcloud/CN=cloud.k8s.local"
 
 
 # fail2ban disable sshd
