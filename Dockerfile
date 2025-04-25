@@ -1,7 +1,55 @@
+ARG NEXTCLOUD_VERSION=27.1.11
+ARG NGINX_VERSION=1.28.0
+
+
+FROM debian:bookworm AS nginx_builder
+
+
+ARG NEXTCLOUD_VERSION
+ARG NGINX_VERSION
+
+
+RUN apt-get update -y && \
+    apt-get install -y \
+    git \
+    wget \
+    build-essential \
+    dpkg-dev \
+    cmake \
+    unzip \
+    zlib1g-dev \
+    libpcre3-dev \
+    libssl-dev \
+    pkg-config \
+    autoconf \
+    automake \
+    libtool;
+
+# Install brotli
+RUN cd /opt && \
+    git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli && \
+    cd ngx_brotli/deps/brotli && \
+    mkdir out && cd out && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_CXX_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_INSTALL_PREFIX=./installed .. && \
+    cmake --build . --config Release --target brotlienc && \
+    cd ../../../.. && \
+    wget https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz && \
+    tar -zxvf nginx-${NGINX_VERSION}.tar.gz && \
+    cd nginx-${NGINX_VERSION} && \
+    ./configure --with-compat --add-dynamic-module=/opt/ngx_brotli && \
+    make modules && \
+    cp objs/*.so /tmp/
+
+
+
+
+###############################################################
+
 FROM php:8.2-fpm-bookworm
 
 
-ENV NEXTCLOUD_VERSION=27.1.11
+ARG NGINX_VERSION
+ARG NEXTCLOUD_VERSION
 
 
 # Maintenance tools
@@ -24,11 +72,25 @@ RUN set -eux; \
         libldap-common \
         libmagickcore-6.q16-6-extra \
         rsync \
-        nginx \
         supervisor \
-        ffmpeg \
-    ; \
-    rm -rf /var/lib/apt/lists/*;
+        ffmpeg;
+
+
+# Install Nginx from official repo
+RUN set -eux; \
+    apt-get update -y && \
+    apt-get install -y curl gnupg2 ca-certificates lsb-release debian-archive-keyring && \
+    curl https://nginx.org/keys/nginx_signing.key \
+    | gpg --dearmor > /usr/share/keyrings/nginx-archive-keyring.gpg && \
+    gpg --dry-run --quiet --no-keyring --import --import-options import-show /usr/share/keyrings/nginx-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/debian $(lsb_release -cs) nginx" > /etc/apt/sources.list.d/nginx.list && \
+    echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/mainline/debian $(lsb_release -cs) nginx" >> /etc/apt/sources.list.d/nginx.list && \
+    printf "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx && \
+    apt-get update -y && \
+    apt-get install -y nginx=${NGINX_VERSION}-1~$(lsb_release -cs);
+
+# Install Nginx Brotli module
+COPY --from=nginx_builder /tmp/*.so /usr/lib/nginx/modules/
 
 
 RUN mkdir -p /var/spool/cron/crontabs; \
