@@ -1,14 +1,21 @@
 # set max upload size
-client_max_body_size 512M;
-fastcgi_buffers 64 4K;
+client_max_body_size 100G;
+client_body_buffer_size 1m;
+client_body_temp_path /var/tmp/nginx_client_body_temp;
+
 
 # Enable gzip but do not remove ETag headers
 gzip on;
 gzip_vary on;
 gzip_comp_level 4;
-gzip_min_length 256;
+gzip_min_length 1024;
 gzip_proxied expired no-cache no-store private no_last_modified no_etag auth;
-gzip_types application/atom+xml application/javascript application/json application/ld+json application/manifest+json application/rss+xml application/vnd.geo+json application/vnd.ms-fontobject application/x-font-ttf application/x-web-app-manifest+json application/xhtml+xml application/xml font/opentype image/bmp image/svg+xml image/x-icon text/cache-manifest text/css text/plain text/vcard text/vnd.rim.location.xloc text/vtt text/x-component text/x-cross-domain-policy;
+gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
+
+# Enable Brotli
+brotli on;
+brotli_comp_level 4;
+brotli_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
 
 # Pagespeed is not supported by Nextcloud, so if your server is built
 # with the `ngx_pagespeed` module, uncomment this line to disable it.
