@@ -1,4 +1,4 @@
-ARG NEXTCLOUD_VERSION=27.1.11
+ARG NEXTCLOUD_VERSION=28.0.10
 ARG NGINX_VERSION=1.28.0
 
 
@@ -45,7 +45,7 @@ RUN cd /opt && \
 
 ###############################################################
 
-FROM php:8.2-fpm-bookworm
+FROM php:8.3-fpm-bookworm
 
 
 ARG NGINX_VERSION
@@ -144,9 +144,9 @@ RUN set -ex; \
     ; \
     \
     pecl install APCu-5.1.24; \
-    pecl install imagick-3.7.0; \
+    pecl install imagick-3.8.0; \
     pecl install memcached-3.3.0; \
-    pecl install redis-6.1.0; \
+    pecl install redis-6.2.0; \
     \
     docker-php-ext-enable \
         apcu \
