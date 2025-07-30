@@ -1,6 +1,7 @@
 services:
   cloud:
-    image: cloud:27.1.11
+    image: cloud:latest
+    container_name: nextcloud
     restart: always
     environment:
       TZ: "Asia/Taipei"
@@ -19,7 +20,8 @@ services:
       - nextcloud_network
 
   redis:
-    image: redis:7.4.1
+    image: redis:8.0.3
+    container_name: redis
     restart: always
     environment:
       TZ: "Asia/Taipei"
