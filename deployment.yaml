@@ -1,0 +1,219 @@
+# Nextcloud data PV (使用 NFS 掛載 TrueNAS 共享)
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: test-cloud-data-pv
+spec:
+  storageClassName: test-cloud-data
+  capacity:
+    storage: 1Ti
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    # 指定 TrueNAS NFS 共享目錄 (目錄設置 user, group: www-data)
+    path: "/mnt/nextcloud"
+    server: "10.20.1.5"
+    readOnly: false
+---
+# Nextcloud data PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-cloud-data-pvc
+  namespace: test-cloud
+spec:
+  storageClassName: test-cloud-data
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Ti
+---
+# Nextcloud config PV
+#
+# 存放 Nextcloud 的 config.php 和 install-apps/
+# 不能使用 ConfigMap 掛載 config.php，因為 Nextcloud 會自動修改 config.php 內容
+# install-apps/ 用於存放在 Nextcloud 應用商店下載的第三方應用程式
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: test-cloud-config-pv
+spec:
+  storageClassName: test-cloud-config
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    # 指定 TrueNAS NFS 共享目錄 (目錄設置 user, group: www-data)
+    path: "/mnt/k8s/test-cloud"
+    server: "10.20.1.5"
+    readOnly: false
+---
+# Nextcloud config PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-cloud-config-pvc
+  namespace: test-cloud
+spec:
+  storageClassName: test-cloud-config
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# ConfigMap：Redis 配置
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: test-cloud
+data:
+  redis.conf: |
+    # Redis password
+    requirepass redis_password
+
+    maxmemory-policy volatile-ttl
+---
+# Nextcloud Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud
+  namespace: test-cloud
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nextcloud
+  template:
+    metadata:
+      labels:
+        app: nextcloud
+    spec:
+      securityContext:
+        fsGroup: 33
+      containers:
+      - name: nextcloud
+        image: cloud:latest
+        env:
+        - name: TZ
+          value: "Asia/Taipei"
+        ports:
+        - containerPort: 80
+        - containerPort: 443
+        volumeMounts:
+        # 掛載 PVC 中的 Nextcloud 資料，檔案位於 test-cloud-data-pvc
+        - name: nextcloud-data
+          mountPath: /var/www/html/nextclouddata
+        # 掛載 PVC 中的 config.php，檔案位於 test-cloud-config-pvc/config/config.php
+        - name: nextcloud-config
+          mountPath: /var/www/html/config/config.php
+          subPath: config/config.php
+        # 掛載 PVC 中的 install-apps/，檔案位於 test-cloud-config-pvc/install-apps
+        - name: nextcloud-config
+          mountPath: /var/www/html/install-apps
+          subPath: install-apps
+        resources:
+          requests:
+            cpu: "1"
+            memory: "1Gi"
+          limits:
+            cpu: "6"
+            memory: "10Gi"
+      volumes:
+      - name: nextcloud-data
+        persistentVolumeClaim:
+          claimName: test-cloud-data-pvc
+      - name: nextcloud-config
+        persistentVolumeClaim:
+          claimName: test-cloud-config-pvc
+---
+# Nextcloud Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextcloud-service
+  namespace: test-cloud
+spec:
+  selector:
+    app: nextcloud
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  - name: https
+    port: 443
+    targetPort: 443
+  type: LoadBalancer
+  loadBalancerIP: 10.20.10.132
+  # 使用 MetalLB 管理 IP
+  # 使用 LoadBalancer 掛載 Nextcloud，不使用 ClusterIP + Nginx ingress
+  # Nextcloud 代理太多層會有 Error when assembling chunks, status code 504 問題
+---
+# Redis Deployment (使用 emptyDir 掛載，刪除 namespace 會一起清除)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: test-cloud
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:8.0.3
+        env:
+        - name: TZ
+          value: "Asia/Taipei"
+        ports:
+        - containerPort: 6379
+        command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--appendonly", "yes"]
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        - name: redis-config
+          mountPath: /usr/local/etc/redis/redis.conf
+          subPath: redis.conf
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+      volumes:
+      - name: redis-data
+        emptyDir: {}
+      - name: redis-config
+        configMap:
+          name: redis-config
+          items:
+          - key: redis.conf
+            path: redis.conf
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: test-cloud
+spec:
+  selector:
+    app: redis
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: 6379
+  type: ClusterIP
