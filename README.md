@@ -1,11 +1,13 @@
 # nextcloud-custom
 基於 Nextcloud 官方 image 修改的容器  
-修改成自託管 Nextcloud server 所需架構  
+修改成自託管 Nextcloud server 所需架構，並進行配置優化。  
 
 - **Web 服務**：使用 Nginx + PHP-FPM
 - **資料庫**：連接外部的 MariaDB, Redis 
 - **存儲**：Nextcloud data 使用 NFS 掛載外部存儲 server (TrueNAS CORE)
-- **進程管理**：使用 Supervisord 掛載並管理所有相關進程。
+- **檔案限制**：修改最大檔案上傳大小至 100GB
+- **網頁載入優化**：優化 Nginx 配置，啟用 Brotli、gzip 壓縮，提高網頁載入速度
+- **SSL**：優化 Nginx SSL 配置，提高安全性。
 
 
 ## Upgrade
