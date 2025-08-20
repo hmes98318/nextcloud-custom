@@ -11,7 +11,7 @@
 
 
 ## Upgrade
-Nextcloud 的 major 版本升級後需進入容器執行以下命令，用於升級 Nextcloud 和資料庫資料，minor、patch 版本升級後不需執行，log 如果有出現錯誤再執行即可。  
+Nextcloud 的版本升級後需進入容器執行以下命令，用於升級 Nextcloud 和資料庫資料。  
 ```bash
 sudo -u www-data ./occ upgrade
 sudo -u www-data ./occ db:add-missing-columns
