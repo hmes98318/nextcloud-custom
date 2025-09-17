@@ -1,7 +1,7 @@
 # nextcloud-custom
 基於 Nextcloud 官方 image 修改的容器  
 修改成自託管 Nextcloud server 所需架構，進行配置優化。  
-並部署於 Kubernetes 集群上。  
+並部署於地端 Kubernetes 集群上。  
 
 - **Web 服務**：使用 Nginx + PHP-FPM
 - **資料庫**：連接外部的 MariaDB, Redis 
