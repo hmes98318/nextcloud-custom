@@ -1,4 +1,4 @@
-ARG NEXTCLOUD_VERSION=31.0.8
+ARG NEXTCLOUD_VERSION=31.0.11
 ARG NGINX_VERSION=1.28.0
 
 
@@ -45,7 +45,7 @@ RUN cd /opt && \
 
 ###############################################################
 
-FROM php:8.3-fpm-bookworm
+FROM php:8.3.28-fpm-bookworm
 
 
 ARG NGINX_VERSION
