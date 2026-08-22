@@ -210,6 +210,7 @@ RUN rm -f /var/www/html/* && \
     find /var/www/html -type f -exec chmod 0644 {} + && \
     chmod 0755 /var/www/html/occ && \
     install -d -o www-data -g www-data -m 0750 /var/www/nextcloud-sessions-tmp && \
+    install -d -o www-data -g www-data -m 0750 /var/www/html/config && \
     install -d -o www-data -g www-data -m 0755 /var/www/html/install-apps && \
     install -d -o nginx -g nginx -m 0750 \
         /var/tmp/nginx_client_body_temp \
