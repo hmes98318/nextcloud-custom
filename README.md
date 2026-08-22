@@ -12,13 +12,11 @@
 
 
 ## Upgrade
-Nextcloud 的版本升級後需進入容器執行以下命令，用於升級 Nextcloud 和資料庫資料。  
+Nextcloud 版本升級後，需進入容器內執行以下命令：
 ```bash
-sudo -u www-data ./occ upgrade
-sudo -u www-data ./occ db:add-missing-columns
-sudo -u www-data ./occ db:add-missing-indices
-sudo -u www-data ./occ db:add-missing-primary-keys
+nextcloud-upgrade
 ```
+此腳本會執行 Nextcloud 升級腳本、檢查並更新資料庫欄位、索引。
 
 
 ## License

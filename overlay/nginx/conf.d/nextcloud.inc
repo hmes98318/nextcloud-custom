@@ -82,9 +82,32 @@ location ^~ /.well-known {
     return 301 /index.php$request_uri;
 }
 
+
 # Rules borrowed from `.htaccess` to hide certain paths from clients
-location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)(?:$|/)  { return 404; }
-location ~ ^/(?:\.|autotest|occ|issue|indie|db_|console)                { return 404; }
+# Nextcloud internal paths that must not be accessed directly.
+location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)(?:$|/) {
+    return 404;
+}
+
+# Deployment-specific private path. This is the current data PVC mount.
+location = /nextclouddata {
+    return 404;
+}
+
+location ^~ /nextclouddata/ {
+    return 404;
+}
+
+# Hidden files and internal Nextcloud entry points.
+location ~ ^/(?:\.|autotest|occ|issue|indie|db_|console) {
+    return 404;
+}
+
+# Metadata files that may expose dependency information.
+location ~ ^/(?:composer\.(?:json|lock)|package(?:-lock)?\.json|core/shipped\.json)$ {
+    return 404;
+}
+
 
 # Ensure this block, which passes PHP files to the PHP process, is above the blocks
 # which handle static assets (as seen below). If this block is not declared first,
@@ -92,7 +115,7 @@ location ~ ^/(?:\.|autotest|occ|issue|indie|db_|console)                { return
 # to the URI, resulting in a HTTP 500 error response.
 location ~ \.php(?:$|/) {
     # Required for legacy support
-    rewrite ^/(?!index|remote|public|cron|core\/ajax\/update|status|ocs\/v[12]|updater\/.+|oc[ms]-provider\/.+|.+\/richdocumentscode\/proxy) /index.php$request_uri;
+    rewrite ^/(?!index|remote|public|cron|status|ocs\/v[12]|ocs-provider\/.+|core\/ajax\/update|updater\/.+|.+\/richdocumentscode(_arm64)?\/proxy) /index.php$request_uri;
 
     fastcgi_split_path_info ^(.+?\.php)(/.*)$;
     set $path_info $fastcgi_path_info;
@@ -112,7 +135,7 @@ location ~ \.php(?:$|/) {
     fastcgi_request_buffering off;
 }
 
-location ~ \.(?:css|mjs|js|svg|gif|png|jpg|ico|wasm|tflite|map)$ {
+location ~ \.(?:css|js|mjs|svg|gif|ico|jpg|png|webp|wasm|tflite|map|ogg|flac|mp4|webm)$ {
     try_files $uri /index.php$request_uri;
     expires 6M;         # Cache-Control policy borrowed from `.htaccess`
     access_log off;     # Optional: Don't log access to assets

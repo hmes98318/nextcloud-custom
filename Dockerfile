@@ -87,7 +87,8 @@ RUN set -eux; \
     echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/mainline/debian $(lsb_release -cs) nginx" >> /etc/apt/sources.list.d/nginx.list && \
     printf "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx && \
     apt-get update -y && \
-    apt-get install -y nginx=${NGINX_VERSION}-1~$(lsb_release -cs);
+    apt-get install -y nginx=${NGINX_VERSION}-1~$(lsb_release -cs) && \
+    id nginx;
 
 # Install Nginx Brotli module
 COPY --from=nginx_builder /tmp/*.so /usr/lib/nginx/modules/
@@ -204,12 +205,15 @@ RUN set -ex; \
 RUN rm -f /var/www/html/* && \
     rsync -a --exclude='updater' /usr/src/nextcloud/ /var/www/html/ && \
     rm -rf /usr/src/nextcloud && \
-    mkdir -p \
-    /var/www/nextcloud-sessions-tmp \
-    /var/www/html/install-apps \
-    && \
-    chown -R www-data:www-data /var/www/html; \
-    chown -R www-data:www-data /var/www/nextcloud-sessions-tmp
+    chown -R root:root /var/www/html && \
+    find /var/www/html -type d -exec chmod 0755 {} + && \
+    find /var/www/html -type f -exec chmod 0644 {} + && \
+    chmod 0755 /var/www/html/occ && \
+    install -d -o www-data -g www-data -m 0750 /var/www/nextcloud-sessions-tmp && \
+    install -d -o www-data -g www-data -m 0755 /var/www/html/install-apps && \
+    install -d -o nginx -g nginx -m 0750 \
+        /var/tmp/nginx_client_body_temp \
+        /var/tmp/nginx_proxy_temp
 
 
 
@@ -229,8 +233,9 @@ COPY ./overlay/php-fpm.d /usr/local/etc/php-fpm.d/
 COPY ./overlay/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 COPY ./overlay/cron.sh /
+COPY ./overlay/scripts/nextcloud-upgrade.sh /usr/local/sbin/nextcloud-upgrade
 
-RUN chmod +x /cron.sh
+RUN chmod 0755 /cron.sh /usr/local/sbin/nextcloud-upgrade
 
 
 # SSL self-signed certificate
@@ -250,4 +255,3 @@ COPY ./overlay/fail2ban/jail.d/nextcloud.local /etc/fail2ban/jail.d/nextcloud.lo
 
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
-
