@@ -1,5 +1,5 @@
-ARG NEXTCLOUD_VERSION=31.0.11
-ARG NGINX_VERSION=1.28.0
+ARG NEXTCLOUD_VERSION=31.0.14
+ARG NGINX_VERSION=1.30.4
 
 
 FROM debian:bookworm AS nginx_builder
@@ -45,7 +45,7 @@ RUN cd /opt && \
 
 ###############################################################
 
-FROM php:8.3.28-fpm-bookworm
+FROM php:8.3.33-fpm-bookworm
 
 
 ARG NGINX_VERSION
