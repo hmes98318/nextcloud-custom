@@ -205,7 +205,7 @@ RUN set -ex; \
 RUN rm -f /var/www/html/* && \
     rsync -a --exclude='updater' /usr/src/nextcloud/ /var/www/html/ && \
     rm -rf /usr/src/nextcloud && \
-    chown -R root:root /var/www/html && \
+    chown -R www-data:www-data /var/www/html && \
     find /var/www/html -type d -exec chmod 0755 {} + && \
     find /var/www/html -type f -exec chmod 0644 {} + && \
     chmod 0755 /var/www/html/occ && \
