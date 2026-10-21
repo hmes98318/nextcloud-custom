@@ -3,6 +3,7 @@ ARG NGINX_VERSION=1.30.6
 
 ARG DEBIAN_IMAGE=debian:12.15
 ARG PHP_IMAGE=php:8.3.36-fpm-bookworm
+ARG PIE_IMAGE=ghcr.io/php/pie:1.4.5-bin
 
 
 FROM ${DEBIAN_IMAGE} AS nginx_builder
@@ -42,6 +43,9 @@ RUN cd /opt && \
     ./configure --with-compat --add-dynamic-module=/opt/ngx_brotli && \
     make modules && \
     cp objs/*.so /tmp/
+
+
+FROM ${PIE_IMAGE} AS pie
 
 
 
@@ -102,7 +106,8 @@ RUN mkdir -p /var/spool/cron/crontabs; \
     echo '*/5 * * * * php /var/www/html/occ preview:pre-generate -v' >> /var/spool/cron/crontabs/www-data
 
 
-RUN set -ex; \
+RUN --mount=type=bind,from=pie,source=/pie,target=/usr/local/bin/pie \
+    set -ex; \
     \
     savedAptMark="$(apt-mark showmanual)"; \
     \
@@ -118,11 +123,13 @@ RUN set -ex; \
         libmagickwand-dev \
         libmcrypt-dev \
         libmemcached-dev \
+        libtool \
         libpng-dev \
         libpq-dev \
         libwebp-dev \
         libxml2-dev \
         libzip-dev \
+        unzip \
         # https://github.com/docker-library/php/issues/1488
         libssl-dev \
     ; \
@@ -147,18 +154,10 @@ RUN set -ex; \
         zip \
     ; \
     \
-    pecl install APCu-5.1.24; \
-    pecl install imagick-3.8.0; \
-    pecl install memcached-3.3.0; \
-    pecl install redis-6.2.0; \
-    \
-    docker-php-ext-enable \
-        apcu \
-        imagick \
-        memcached \
-        redis \
-    ; \
-    rm -r /tmp/pear; \
+    pie install --no-cache apcu/apcu:5.1.24; \
+    pie install --no-cache imagick/imagick:3.8.0; \
+    pie install --no-cache php-memcached/php-memcached:3.3.0; \
+    pie install --no-cache phpredis/phpredis:6.2.0; \
     \
     apt-mark auto '.*' > /dev/null; \
     apt-mark manual $savedAptMark; \
