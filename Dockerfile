@@ -1,8 +1,11 @@
 ARG NEXTCLOUD_VERSION=32.0.15
-ARG NGINX_VERSION=1.30.5
+ARG NGINX_VERSION=1.30.6
+
+ARG DEBIAN_IMAGE=debian:12.15
+ARG PHP_IMAGE=php:8.3.36-fpm-bookworm
 
 
-FROM debian:bookworm AS nginx_builder
+FROM ${DEBIAN_IMAGE} AS nginx_builder
 
 
 ARG NEXTCLOUD_VERSION
@@ -45,7 +48,7 @@ RUN cd /opt && \
 
 ###############################################################
 
-FROM php:8.3.33-fpm-bookworm
+FROM ${PHP_IMAGE}
 
 
 ARG NGINX_VERSION
