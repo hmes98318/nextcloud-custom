@@ -100,6 +100,10 @@ spec:
       containers:
       - name: nextcloud
         image: cloud:latest
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN  # fail2ban 使用 iptables 封鎖 IP 所需
         env:
         - name: TZ
           value: "Asia/Taipei"

@@ -34,7 +34,7 @@ RUN cd /opt && \
     git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli && \
     cd ngx_brotli/deps/brotli && \
     mkdir out && cd out && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS="-Ofast -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_CXX_FLAGS="-Ofast -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_INSTALL_PREFIX=./installed .. && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS="-Ofast -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_CXX_FLAGS="-Ofast -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_INSTALL_PREFIX=./installed .. && \
     cmake --build . --config Release --target brotlienc && \
     cd ../../../.. && \
     wget https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz && \
@@ -65,6 +65,7 @@ RUN apt-get update; \
     sudo \
     cron \
     fail2ban \
+    iptables \
     iputils-ping \
     procps \
     vim;
@@ -229,6 +230,9 @@ RUN rm -f /usr/local/etc/php-fpm.d/* && \
 
 COPY ./overlay/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY ./overlay/nginx/conf.d /etc/nginx/conf.d
+# Remove the nginx package's default welcome-page server so it cannot shadow
+# our server blocks (e.g. requests with "Host: localhost" or over IPv6).
+RUN rm -f /etc/nginx/conf.d/default.conf
 
 COPY ./overlay/php /usr/local/etc/php/conf.d/
 COPY ./overlay/php-fpm.d /usr/local/etc/php-fpm.d/
@@ -237,8 +241,9 @@ COPY ./overlay/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 COPY ./overlay/cron.sh /
 COPY ./overlay/scripts/nextcloud-upgrade.sh /usr/local/sbin/nextcloud-upgrade
+COPY ./overlay/scripts/fail2ban-start.sh /usr/local/sbin/fail2ban-start
 
-RUN chmod 0755 /cron.sh /usr/local/sbin/nextcloud-upgrade
+RUN chmod 0755 /cron.sh /usr/local/sbin/nextcloud-upgrade /usr/local/sbin/fail2ban-start
 
 
 # SSL self-signed certificate

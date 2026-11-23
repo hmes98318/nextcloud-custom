@@ -3,6 +3,8 @@ services:
     image: cloud:latest
     container_name: nextcloud
     restart: always
+    cap_add:
+      - NET_ADMIN  # required for fail2ban to ban IPs with iptables
     environment:
       TZ: "Asia/Taipei"
     ports:
