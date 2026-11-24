@@ -10,5 +10,17 @@ docs
 docker-compose.yml
 deployment.yaml
 
+# Development tooling and tests, not part of the image
+.gitignore
+.prettierignore
+.prettierrc.json
+eslint.config.mjs
+node_modules
+package.json
+package-lock.json
+scripts
+tests
+tsconfig.json
+
 # Example nginx configuration, not installed into the image
 overlay/nginx/conf.d/*.template

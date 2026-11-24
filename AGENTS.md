@@ -13,15 +13,18 @@ Treat them as mandatory repository-wide guidance.
 
 Also follow, when the change touches that scope:
 
-- `docs/standards/nextcloud-custom/coding-style.md` for any shell script change (mandatory).
-- `docs/standards/nextcloud-custom/testing.md` when deciding whether a change needs automated tests.
+- `docs/standards/nextcloud-custom/coding-style.md` for any shell script or TypeScript change (mandatory).
+- `docs/standards/nextcloud-custom/testing.md` when deciding whether a change needs automated tests, and for any change to the image test flow.
 
 ## Verification
 
 Before finishing a change, run these commands and resolve every failure the change causes, without suppressing or disabling checks:
 
-- `shfmt -w .` — applies formatting and automatic fixes.
-- `shfmt -d . && shfmt -f . | xargs shellcheck` — checks formatting and linting without modifying files.
+- `shfmt -w .` — (shell) applies formatting and automatic fixes.
+- `shfmt -d . && shfmt -f . | xargs shellcheck` — (shell) checks formatting and linting without modifying files.
+- `npm run format` — (typescript) applies formatting and automatic fixes.
+- `npm run verify` — (typescript) checks formatting, linting, and types without modifying files.
+- `npm test` — (typescript) runs the image test flow. It builds the image and needs Docker, so run it when the change touches the `Dockerfile`, `overlay/`, `tests/`, or `scripts/`.
 
 ## Documentation Skill Prerequisite
 

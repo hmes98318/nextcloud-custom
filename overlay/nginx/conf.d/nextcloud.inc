@@ -27,6 +27,10 @@ add_header X-Robots-Tag                         "noindex, nofollow" always;
 # Remove X-Powered-By, which is an information leak
 fastcgi_hide_header X-Powered-By;
 
+# Nextcloud sends X-Robots-Tag itself; keep only the nginx header above so the
+# header is not sent twice on responses from PHP
+fastcgi_hide_header X-Robots-Tag;
+
 # Path to the root of your installation
 root /var/www/html/;
 

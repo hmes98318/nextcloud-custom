@@ -1,0 +1,144 @@
+# Test environment of the image test flow and the development stack.
+#
+# scripts/test.ts and scripts/dev.ts start it; see docs/testing.md. Unlike the
+# example docker-compose.yml in the repository root, it runs the locally built
+# image, publishes ports on the loopback address only, adds the Nextcloud
+# settings of tests/config, and has a second client container for abuse tests
+# and a standalone container for the certificate that an operator mounts.
+#
+# Compose substitutes these variables, which the scripts set:
+#   TEST_IMAGE          image to run (default nextcloud-custom:dev)
+#   TEST_HTTP_PORT      host port for HTTP, empty for a random free port
+#   TEST_HTTPS_PORT     host port for HTTPS, empty for a random free port
+#   TEST_DB_PASSWORD    database passwords
+#   TEST_REDIS_PASSWORD Redis password
+
+name: nextcloud-custom-test
+
+x-image: &image
+  image: "${TEST_IMAGE:-nextcloud-custom:dev}"
+  pull_policy: never
+
+services:
+  cloud:
+    <<: *image
+    stop_grace_period: 20s
+    cap_add:
+      - NET_ADMIN  # required for fail2ban to ban IPs with iptables
+    environment:
+      TZ: "Asia/Taipei"
+      SSL_CERT_CN: "localhost"
+    ports:
+      - "127.0.0.1:${TEST_HTTP_PORT:-}:80"
+      - "127.0.0.1:${TEST_HTTPS_PORT:-}:443"
+    volumes:
+      - nextcloud-data:/var/www/html/nextclouddata
+      - nextcloud-config:/var/www/html/config
+    configs:
+      - source: nextcloud-redis
+        target: /var/www/html/config/redis.config.php
+      - source: nextcloud-test
+        target: /var/www/html/config/test.config.php
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # A second container of the same image that sends requests from its own
+  # address, so that the test host is never throttled or banned.
+  client:
+    <<: *image
+    profiles:
+      - client
+    entrypoint: ["sleep", "infinity"]
+    stop_grace_period: 1s
+    healthcheck:
+      disable: true  # the image check needs supervisord, which does not run here
+    volumes:
+      - mounted-cert:/mounted-ssl  # where tests create the certificate to mount
+    depends_on:
+      cloud:
+        condition: service_healthy
+
+  # The image without Nextcloud, serving a certificate that the client
+  # container put into the mounted-cert volume. Tests start it on demand.
+  cloud-mounted:
+    <<: *image
+    profiles:
+      - mounted-cert
+    stop_grace_period: 20s
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "127.0.0.1::443"
+    volumes:
+      - mounted-cert:/etc/nginx/ssl
+
+  db:
+    image: mariadb:11.8.9
+    stop_grace_period: 20s
+    command:
+      - --transaction-isolation=READ-COMMITTED
+      - --binlog-format=ROW
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_bin
+    environment:
+      MARIADB_ROOT_PASSWORD: "${TEST_DB_PASSWORD:-test-db-password}"
+      MARIADB_DATABASE: "nextcloud"
+      MARIADB_USER: "nextcloud"
+      MARIADB_PASSWORD: "${TEST_DB_PASSWORD:-test-db-password}"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  redis:
+    image: redis:8.12.0
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    environment:
+      REDISCLI_AUTH: "${TEST_REDIS_PASSWORD:-test-redis-password}"
+    volumes:
+      - redis-data:/data
+    configs:
+      - source: redis-conf
+        target: /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+configs:
+  redis-conf:
+    content: |
+      requirepass ${TEST_REDIS_PASSWORD:-test-redis-password}
+      appendonly yes
+      maxmemory 512mb
+      maxmemory-policy volatile-ttl
+  nextcloud-redis:
+    content: |
+      <?php
+      $$CONFIG = array(
+        'memcache.local' => '\\OC\\Memcache\\APCu',
+        'memcache.distributed' => '\\OC\\Memcache\\Redis',
+        'memcache.locking' => '\\OC\\Memcache\\Redis',
+        'redis' => array(
+          'host' => 'redis',
+          'port' => 6379,
+          'password' => '${TEST_REDIS_PASSWORD:-test-redis-password}',
+        ),
+      );
+  nextcloud-test:
+    file: ./config/test.config.php
+
+volumes:
+  nextcloud-data:
+  nextcloud-config:
+  db-data:
+  redis-data:
+  mounted-cert:

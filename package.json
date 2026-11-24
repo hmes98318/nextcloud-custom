@@ -1,0 +1,39 @@
+{
+  "name": "@nextcloud-custom/workspace",
+  "private": true,
+  "description": "Development tooling for the nextcloud-custom Docker image.",
+  "license": "AGPL-3.0-only",
+  "author": "hmes98318",
+  "homepage": "https://github.com/hmes98318/nextcloud-custom#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hmes98318/nextcloud-custom.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hmes98318/nextcloud-custom/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "dev": "node scripts/dev.ts",
+    "clean": "node scripts/clean.ts",
+    "test": "node scripts/test.ts",
+    "format": "eslint --fix . && prettier --write scripts \"*.{json,mjs}\"",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "verify": "prettier --check scripts \"*.{json,mjs}\" && eslint . && tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "eslint": "^10.15.0",
+    "eslint-plugin-perfectionist": "^5.14.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.74.0"
+  }
+}

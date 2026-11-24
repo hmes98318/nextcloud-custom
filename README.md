@@ -33,6 +33,17 @@ After upgrading the Nextcloud version, run the upgrade script inside the contain
 nextcloud-upgrade
 ```
 
+## Development
+
+Build the image, run the image tests, and start a development stack with npm scripts. They need Node.js 24 or later and Docker with Compose 2.23.1 or later:
+
+```bash
+npm install
+npm test
+```
+
+`npm test` builds the image, installs Nextcloud in a throwaway Docker Compose stack, runs the functional and security checks, and removes the stack. `npm run build` builds the image alone, `npm run dev -- up` starts a persistent stack for manual work, and `npm run clean` removes what these leave behind in Docker. See [docs/testing.md](./docs/testing.md) for the commands, options, and what the tests cover.
+
 ## License
 
 Copyright (C) 2025  [hmes98318](https://github.com/hmes98318)  

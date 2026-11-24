@@ -32,6 +32,20 @@ The Compose stack runs MariaDB 11.8, the newest version that the admin setup che
 - Grant a container capability only when a process in the image requires it, and state the reason in a comment next to it in each manifest.
 - Keep the real client address visible to the container, because fail2ban bans by the `remoteAddr` that Nextcloud logs: the Kubernetes Service uses `externalTrafficPolicy: Local`, and the trusted proxy ranges in `overlay/nginx/conf.d/real-ip.conf` must cover the load balancer.
 
+## Development Scripts
+
+The development tooling under `scripts/` builds the image, runs the test environment, and runs the image test flow described in `docs/testing.md`. It is written in TypeScript for Node.js 24 LTS and managed with npm.
+
+- Run the TypeScript files directly with Node.js, without a build step and without generated JavaScript. `tsc --noEmit` must pass.
+- Keep the tooling working on Windows, macOS, and Linux: build paths with `node:path`, start programs without a shell, and use no shell syntax or POSIX-only commands.
+- Prefer the Node.js standard library and built-in modules. Add a package only when it is mainstream, stable, actively maintained, and has a clear single purpose, and never to save a few lines.
+- Put only entrypoints, the executable scripts, directly in `scripts/`. Start each entrypoint with a header comment that states its usage and options, and print that comment for `--help`. Put every other code file in a subdirectory.
+- Extract a module only when more than one entrypoint or suite shares it. Do not split code into modules for their own sake.
+- Make terminal output readable: color and status markers for steps, successes, warnings, and failures, honoring `NO_COLOR`, `FORCE_COLOR`, and output that is not a terminal. Show the position of each step of a script that has several, as `[n/total]` in the step heading, and give a step the same number whether the run passes, fails, or is interrupted. Run Docker with plain progress and no ANSI output, and reset the terminal attributes after any child process that writes to the terminal, because Docker's colors can leak into later output.
+- Keep everything that the tooling creates in Docker removable by the clean script: label the images that the build script creates, and name Compose projects with the constants in `scripts/lib/paths.ts`. The clean script removes only resources that it can tie to this project by those labels and names, and removes the development stack, which holds the data of manual work, only when asked.
+- Keep the test environment in `tests/`: a Compose stack that runs the locally built image with MariaDB and Redis, and Nextcloud configuration overrides in `tests/config/*.config.php`. Nextcloud merges every `*.config.php` file over `config.php`, so overrides never edit generated configuration. The environment is separate from the example `docker-compose.yml`, which stays free of test settings.
+- Keep the development tooling and the test environment out of the Docker build context with `.dockerignore`.
+
 ## CI/CD
 
 - Build each platform on a runner of that platform, not under emulation, and publish a release as one multi-arch manifest created from the per-platform digests.
