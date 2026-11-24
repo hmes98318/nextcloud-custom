@@ -1,92 +1,115 @@
-# Nextcloud data PV (使用 NFS 掛載 TrueNAS 共享)
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: test-cloud-data-pv
-spec:
-  storageClassName: test-cloud-data
-  capacity:
-    storage: 1Ti
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  nfs:
-    # 指定 TrueNAS NFS 共享目錄 (目錄設置 user, group: www-data)
-    path: "/mnt/nextcloud"
-    server: "10.20.1.5"
-    readOnly: false
----
-# Nextcloud data PVC
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: test-cloud-data-pvc
-  namespace: test-cloud
-spec:
-  storageClassName: test-cloud-data
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Ti
----
-# Nextcloud config PV
+# Example Kubernetes deployment of Nextcloud and Redis.
 #
-# 存放 Nextcloud 的 config.php 和 install-apps/
-# 不能使用 ConfigMap 掛載 config.php，因為 Nextcloud 會自動修改 config.php 內容
-# install-apps/ 用於存放在 Nextcloud 應用商店下載的第三方應用程式
+#   kubectl apply -f deployment.yaml
+#
+# Adapt it before use. Every value you must change is marked with CHANGE.
+#
+# Prerequisites:
+#   - A MariaDB database reachable from the cluster. This example does not
+#     deploy one; enter its host and credentials in the web installer.
+#   - An NFS server with two exports, one for the data directory and one for
+#     config.php and the third-party apps. Both must be owned by and writable
+#     for uid and gid 33 (www-data).
+#   - In the config and apps export, create the directory "config" containing
+#     a "config.php" file (<?php $CONFIG = array();) and the directory
+#     "install-apps". Nextcloud writes config.php during the installation.
+#   - Nextcloud can then be reached over HTTPS (self-signed certificate) on
+#     the address the Service gets.
+
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nextcloud
+---
+# =============================================================================
+# Nextcloud
+# =============================================================================
+
+# Nextcloud data PersistentVolume, an NFS export of the storage server
+#
+# The storage class name is not served by any provisioner. It only makes the
+# claim below bind to this volume. NFS does not enforce the capacity.
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: test-cloud-config-pv
+  name: nextcloud-data-pv
 spec:
-  storageClassName: test-cloud-config
+  storageClassName: nextcloud-data
   capacity:
-    storage: 1Gi
+    storage: "1Ti"
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   nfs:
-    # 指定 TrueNAS NFS 共享目錄 (目錄設置 user, group: www-data)
-    path: "/mnt/k8s/test-cloud"
-    server: "10.20.1.5"
+    # CHANGE: address of the storage server, and an export owned by uid/gid 33
+    server: "nfs.example.com"
+    path: "/exports/nextcloud-data"
     readOnly: false
 ---
-# Nextcloud config PVC
+# Nextcloud data PersistentVolumeClaim, mounted at /var/www/html/nextclouddata
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: test-cloud-config-pvc
-  namespace: test-cloud
+  name: nextcloud-data-pvc
+  namespace: nextcloud
 spec:
-  storageClassName: test-cloud-config
+  storageClassName: nextcloud-data
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: "1Ti"
 ---
-# ConfigMap：Redis 配置
+# Nextcloud config and apps PersistentVolume, an NFS export of the server
+#
+# Holds config/config.php and install-apps/. config.php cannot come from a
+# ConfigMap because Nextcloud rewrites it. install-apps/ keeps the third-party
+# apps downloaded from the Nextcloud app store.
 apiVersion: v1
-kind: ConfigMap
+kind: PersistentVolume
 metadata:
-  name: redis-config
-  namespace: test-cloud
-data:
-  redis.conf: |
-    # Redis password
-    requirepass redis_password
-
-    maxmemory-policy volatile-ttl
+  name: nextcloud-config-pv
+spec:
+  storageClassName: nextcloud-config
+  capacity:
+    storage: "1Gi"
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    # CHANGE: address of the storage server, and an export owned by uid/gid 33
+    server: "nfs.example.com"
+    path: "/exports/nextcloud-config"
+    readOnly: false
+---
+# Nextcloud config and apps PersistentVolumeClaim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-config-pvc
+  namespace: nextcloud
+spec:
+  storageClassName: nextcloud-config
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "1Gi"
 ---
 # Nextcloud Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cloud
-  namespace: test-cloud
+  name: nextcloud
+  namespace: nextcloud
 spec:
   replicas: 1
+  # The data and config and apps volumes are ReadWriteOnce. Stop the old Pod
+  # before the new one starts so that two Nextcloud instances never write at
+  # the same time.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: nextcloud
@@ -95,76 +118,143 @@ spec:
       labels:
         app: nextcloud
     spec:
-      securityContext:
-        fsGroup: 33
+      # Nextcloud does not need the Kubernetes API
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
       containers:
-      - name: nextcloud
-        image: cloud:latest
-        securityContext:
-          capabilities:
-            add:
-            - NET_ADMIN  # fail2ban 使用 iptables 封鎖 IP 所需
-        env:
-        - name: TZ
-          value: "Asia/Taipei"
-        ports:
-        - containerPort: 80
-        - containerPort: 443
-        volumeMounts:
-        # 掛載 PVC 中的 Nextcloud 資料，檔案位於 test-cloud-data-pvc
-        - name: nextcloud-data
-          mountPath: /var/www/html/nextclouddata
-        # 掛載 PVC 中的 config.php，檔案位於 test-cloud-config-pvc/config/config.php
-        - name: nextcloud-config
-          mountPath: /var/www/html/config/config.php
-          subPath: config/config.php
-        # 掛載 PVC 中的 install-apps/，檔案位於 test-cloud-config-pvc/install-apps
-        - name: nextcloud-config
-          mountPath: /var/www/html/install-apps
-          subPath: install-apps
-        resources:
-          requests:
-            cpu: "1"
-            memory: "1Gi"
-          limits:
-            cpu: "6"
-            memory: "10Gi"
+        - name: nextcloud
+          # CHANGE: pin a release tag instead of latest
+          image: ghcr.io/hmes98318/nextcloud-custom:latest
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN  # required for fail2ban to ban IPs with iptables
+          env:
+            - name: TZ
+              value: "Asia/Taipei"
+            # A self-signed TLS certificate is generated at every start. To use
+            # your own certificate, mount nginx.crt and nginx.key at
+            # /etc/nginx/ssl.
+            - name: SSL_CERT_CN
+              value: "nextcloud.example.com"  # CHANGE: your host name
+          ports:
+            - containerPort: 80
+            - containerPort: 443
+          # Fail when any process managed by supervisord (nginx, php-fpm, cron,
+          # fail2ban) is not running
+          startupProbe:
+            exec:
+              command:
+                - supervisorctl
+                - status
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 24
+          livenessProbe:
+            exec:
+              command:
+                - supervisorctl
+                - status
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 443
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            # Nextcloud data, stored in nextcloud-data-pvc
+            - name: nextcloud-data
+              mountPath: /var/www/html/nextclouddata
+            # config.php, stored at config/config.php in the config and apps PVC
+            - name: nextcloud-config
+              mountPath: /var/www/html/config/config.php
+              subPath: config/config.php
+            # Apps, stored at install-apps/ in the config and apps PVC
+            - name: nextcloud-config
+              mountPath: /var/www/html/install-apps
+              subPath: install-apps
+          # CHANGE: size the resources for your workload
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
       volumes:
-      - name: nextcloud-data
-        persistentVolumeClaim:
-          claimName: test-cloud-data-pvc
-      - name: nextcloud-config
-        persistentVolumeClaim:
-          claimName: test-cloud-config-pvc
+        - name: nextcloud-data
+          persistentVolumeClaim:
+            claimName: nextcloud-data-pvc
+        - name: nextcloud-config
+          persistentVolumeClaim:
+            claimName: nextcloud-config-pvc
 ---
 # Nextcloud Service
+#
+# A LoadBalancer exposes Nextcloud directly instead of ClusterIP behind an
+# Ingress, because proxying through several layers can fail chunked uploads
+# with "Error when assembling chunks, status code 504". To pin the address,
+# use the annotation of your load balancer implementation.
 apiVersion: v1
 kind: Service
 metadata:
   name: nextcloud-service
-  namespace: test-cloud
+  namespace: nextcloud
 spec:
+  type: LoadBalancer
+  # Keep the real client IP. The default (Cluster) source-NATs it to a node IP,
+  # so Nextcloud logs the node as remoteAddr and fail2ban would ban every user
+  # at once.
+  externalTrafficPolicy: Local
   selector:
     app: nextcloud
   ports:
-  - name: http
-    port: 80
-    targetPort: 80
-  - name: https
-    port: 443
-    targetPort: 443
-  type: LoadBalancer
-  loadBalancerIP: 10.20.10.132
-  # 使用 MetalLB 管理 IP
-  # 使用 LoadBalancer 掛載 Nextcloud，不使用 ClusterIP + Nginx ingress
-  # Nextcloud 代理太多層會有 Error when assembling chunks, status code 504 問題
+    - name: http
+      port: 80
+      targetPort: 80
+    - name: https
+      port: 443
+      targetPort: 443
 ---
-# Redis Deployment (使用 emptyDir 掛載，刪除 namespace 會一起清除)
+# =============================================================================
+# Redis
+# =============================================================================
+
+# Redis Secret, the password of the Redis server
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-secret
+  namespace: nextcloud
+type: Opaque
+stringData:
+  password: "CHANGE_ME"  # CHANGE: use a strong password
+---
+# Redis ConfigMap, the Redis configuration (the password is in redis-secret)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-configmap
+  namespace: nextcloud
+data:
+  redis.conf: |
+    appendonly yes
+    maxmemory 512mb
+    maxmemory-policy volatile-ttl
+---
+# Redis Deployment
+#
+# The data lives in an emptyDir and is lost with the Pod. Nextcloud only keeps
+# cache and file locks in it. In config.php, point Nextcloud at host
+# redis-service, port 6379 and the password of redis-secret.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: redis
-  namespace: test-cloud
+  namespace: nextcloud
 spec:
   replicas: 1
   selector:
@@ -175,49 +265,74 @@ spec:
       labels:
         app: redis
     spec:
+      # Redis does not need the Kubernetes API
+      automountServiceAccountToken: false
       containers:
-      - name: redis
-        image: redis:8.0.3
-        env:
-        - name: TZ
-          value: "Asia/Taipei"
-        ports:
-        - containerPort: 6379
-        command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--appendonly", "yes"]
-        volumeMounts:
-        - name: redis-data
-          mountPath: /data
-        - name: redis-config
-          mountPath: /usr/local/etc/redis/redis.conf
-          subPath: redis.conf
-        resources:
-          requests:
-            cpu: "250m"
-            memory: "256Mi"
-          limits:
-            cpu: "1"
-            memory: "1Gi"
+        - name: redis
+          image: redis:8.12.0
+          command:
+            - redis-server
+            - /usr/local/etc/redis/redis.conf
+            - --requirepass
+            - "$(REDIS_PASSWORD)"
+          env:
+            - name: TZ
+              value: "Asia/Taipei"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+          ports:
+            - containerPort: 6379
+          startupProbe:
+            tcpSocket:
+              port: 6379
+            periodSeconds: 2
+            failureThreshold: 15
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 6379
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+            - name: redis-config
+              mountPath: /usr/local/etc/redis/redis.conf
+              subPath: redis.conf
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
       volumes:
-      - name: redis-data
-        emptyDir: {}
-      - name: redis-config
-        configMap:
-          name: redis-config
-          items:
-          - key: redis.conf
-            path: redis.conf
+        - name: redis-data
+          emptyDir: {}
+        - name: redis-config
+          configMap:
+            name: redis-configmap
 ---
 # Redis Service
+#
+# ClusterIP only: Redis is reachable inside the cluster, never from outside.
 apiVersion: v1
 kind: Service
 metadata:
   name: redis-service
-  namespace: test-cloud
+  namespace: nextcloud
 spec:
+  type: ClusterIP
   selector:
     app: redis
   ports:
-  - name: redis
-    port: 6379
-    targetPort: 6379
-  type: ClusterIP
+    - name: redis
+      port: 6379
+      targetPort: 6379

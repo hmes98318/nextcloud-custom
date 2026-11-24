@@ -64,7 +64,7 @@ run_cron() {
 
 # Preconditions
 check_preconditions() {
-  if (( EUID != 0 )); then
+  if ((EUID != 0)); then
     err 'This script must be executed as root.'
     return 1
   fi
@@ -120,7 +120,7 @@ main() {
 
   log "Running Nextcloud cron.php ${CRON_RUNS} times"
 
-  for (( i = 1; i <= CRON_RUNS; i++ )); do
+  for ((i = 1; i <= CRON_RUNS; i++)); do
     echo
     echo ">>> cron.php run ${i}/${CRON_RUNS}"
     run_cron

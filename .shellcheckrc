@@ -1,0 +1,4 @@
+external-sources=true
+source-path=SCRIPTDIR
+shell=bash
+enable=avoid-nullary-conditions,deprecate-which,quote-safe-variables,require-double-brackets,require-variable-braces

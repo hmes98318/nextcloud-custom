@@ -1,5 +1,10 @@
-#!/bin/sh
-set -eu
+#!/bin/bash
+# Run busybox crond in the foreground so supervisord can manage it.
 
-exec busybox crond -f -L /dev/stdout
+set -euo pipefail
 
+main() {
+  exec busybox crond -f -L /dev/stdout
+}
+
+main "$@"

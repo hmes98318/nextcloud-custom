@@ -1,0 +1,14 @@
+.git
+.github
+.editorconfig
+.shellcheckrc
+.dockerignore
+AGENTS.md
+README.md
+LICENSE
+docs
+docker-compose.yml
+deployment.yaml
+
+# Example nginx configuration, not installed into the image
+overlay/nginx/conf.d/*.template

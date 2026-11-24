@@ -1,51 +1,128 @@
+# Example deployment of a self-contained Nextcloud stack (Nextcloud, MariaDB
+# and Redis) that runs from this file alone. Requires Docker Compose 2.23.1 or
+# later.
+#
+#   docker compose up -d
+#
+# Set real passwords before use, in the environment or in a .env file next to
+# this file: MARIADB_ROOT_PASSWORD, MARIADB_PASSWORD and REDIS_PASSWORD.
+#
+# Then open https://<host>/ (self-signed certificate) and finish the web
+# installer with these database settings:
+#
+#   Data folder         /var/www/html/nextclouddata (pre-filled)
+#   Database user       nextcloud
+#   Database password   the value of MARIADB_PASSWORD
+#   Database name       nextcloud
+#   Database host       db
+#
+# Redis is already wired up through the nextcloud-redis config below.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   cloud:
-    image: cloud:latest
-    container_name: nextcloud
+    image: ghcr.io/hmes98318/nextcloud-custom:latest
     restart: always
+    stop_grace_period: 60s
     cap_add:
       - NET_ADMIN  # required for fail2ban to ban IPs with iptables
     environment:
       TZ: "Asia/Taipei"
+      SSL_CERT_CN: "localhost"  # a self-signed TLS certificate is generated at every start
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - nfsmount:/var/www/html/data  # nextcloud data
-      - ./overlay/config/config.php:/var/www/html/config/config.php     # nextcloud config
-      - ./overlay/php/php.ini:/usr/local/etc/php/conf.d/php.ini         # php config
-      - ./overlay/php-fpm.d/nextcloud.conf:/usr/local/etc/php-fpm.d/nextcloud.conf        # php-fpm config
-      - ./overlay/nginx/conf.d/nextcloud.http.conf:/etc/nginx/conf.d/nextcloud.http.conf  # nginx config
+      - nextcloud-data:/var/www/html/nextclouddata  # nextcloud data
+      - nextcloud-config:/var/www/html/config       # nextcloud config (config.php is written by nextcloud)
+      # - ./ssl:/etc/nginx/ssl:ro                   # optional: use your own nginx.crt and nginx.key
+    configs:
+      - source: nextcloud-redis
+        target: /var/www/html/config/redis.config.php
     depends_on:
-      - redis
-    networks:
-      - nextcloud_network
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
-  redis:
-    image: redis:8.0.3
-    container_name: redis
+  db:
+    image: mariadb:11.8.9
     restart: always
+    stop_grace_period: 60s
+    command:
+      # Required by Nextcloud
+      - --transaction-isolation=READ-COMMITTED
+      - --binlog-format=ROW
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_bin
     environment:
       TZ: "Asia/Taipei"
-    ports:
-      - "6379:6379"
+      MARIADB_ROOT_PASSWORD: "${MARIADB_ROOT_PASSWORD:-change_me_root}"
+      MARIADB_DATABASE: "nextcloud"
+      MARIADB_USER: "nextcloud"
+      MARIADB_PASSWORD: "${MARIADB_PASSWORD:-change_me_db}"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+
+  redis:
+    image: redis:8.12.0
+    restart: always
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    environment:
+      TZ: "Asia/Taipei"
+      REDISCLI_AUTH: "${REDIS_PASSWORD:-change_me_redis}"  # used by the health check
     volumes:
       - redis-data:/data
-      - ./overlay/redis/redis.conf:/usr/local/etc/redis/redis.conf
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--appendonly", "yes"]
-    networks:
-      - nextcloud_network
+    configs:
+      - source: redis-conf
+        target: /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
+configs:
+  redis-conf:
+    content: |
+      requirepass ${REDIS_PASSWORD:-change_me_redis}
+      appendonly yes
+      maxmemory 512mb
+      maxmemory-policy volatile-ttl
+  nextcloud-redis:
+    content: |
+      <?php
+      $$CONFIG = array(
+        'memcache.local' => '\\OC\\Memcache\\APCu',
+        'memcache.distributed' => '\\OC\\Memcache\\Redis',
+        'memcache.locking' => '\\OC\\Memcache\\Redis',
+        'redis' => array(
+          'host' => 'redis',
+          'port' => 6379,
+          'password' => '${REDIS_PASSWORD:-change_me_redis}',
+        ),
+      );
 
 volumes:
-  nfsmount:
-    driver: local
-    driver_opts:
-      type: nfs
-      o: addr=192.168.1.112,nolock,soft,rw
-      device: ":/mnt/Data/test"
+  nextcloud-data:
+  nextcloud-config:
+  db-data:
   redis-data:
-    driver: local
-
-networks:
-  nextcloud_network:
-    driver: bridge

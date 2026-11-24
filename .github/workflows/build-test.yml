@@ -4,11 +4,38 @@ on:
   push:
     branches:
       - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
+  lint:
+    name: Lint shell scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install shfmt
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shfmt
+
+      - name: Check formatting
+        run: shfmt -d .
+
+      - name: Run ShellCheck
+        run: shfmt -f . | xargs shellcheck
+
   build:
     name: Build Docker Image (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -18,14 +45,22 @@ jobs:
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
     steps:
+      - name: Prepare
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_ENV"
+
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
+      # The cache is written only on main; releases (deploy.yml) read it.
       - name: Build Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           platforms: ${{ matrix.platform }}
           push: false
+          cache-from: type=gha,scope=${{ env.PLATFORM_PAIR }}
+          cache-to: ${{ github.ref == 'refs/heads/main' && format('type=gha,mode=max,scope={0}', env.PLATFORM_PAIR) || '' }}

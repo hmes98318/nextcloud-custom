@@ -10,25 +10,19 @@ gzip_vary on;
 gzip_comp_level 4;
 gzip_min_length 1024;
 gzip_proxied expired no-cache no-store private no_last_modified no_etag auth;
-gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
+gzip_types application/atom+xml application/javascript application/json application/ld+json application/manifest+json application/rss+xml application/vnd.geo+json application/vnd.ms-fontobject application/wasm application/x-font-ttf application/x-web-app-manifest+json application/xhtml+xml application/xml font/opentype image/bmp image/svg+xml image/x-icon text/cache-manifest text/css text/javascript text/plain text/vcard text/vnd.rim.location.xloc text/vtt text/x-component text/x-cross-domain-policy text/xml;
 
 # Enable Brotli
 brotli on;
 brotli_comp_level 4;
-brotli_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml;
-
-# Pagespeed is not supported by Nextcloud, so if your server is built
-# with the `ngx_pagespeed` module, uncomment this line to disable it.
-#pagespeed off;
+brotli_types application/atom+xml application/javascript application/json application/ld+json application/manifest+json application/rss+xml application/vnd.geo+json application/vnd.ms-fontobject application/wasm application/x-font-ttf application/x-web-app-manifest+json application/xhtml+xml application/xml font/opentype image/bmp image/svg+xml image/x-icon text/cache-manifest text/css text/javascript text/plain text/vcard text/vnd.rim.location.xloc text/vtt text/x-component text/x-cross-domain-policy text/xml;
 
 # HTTP response headers borrowed from Nextcloud `.htaccess`
 add_header Referrer-Policy                      "no-referrer"   always;
 add_header X-Content-Type-Options               "nosniff"       always;
-add_header X-Download-Options                   "noopen"        always;
 add_header X-Frame-Options                      "SAMEORIGIN"    always;
 add_header X-Permitted-Cross-Domain-Policies    "none"          always;
 add_header X-Robots-Tag                         "noindex, nofollow" always;
-add_header X-XSS-Protection                     "1; mode=block" always;
 
 # Remove X-Powered-By, which is an information leak
 fastcgi_hide_header X-Powered-By;
@@ -89,12 +83,8 @@ location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)(?:$|/) {
     return 404;
 }
 
-# Deployment-specific private path. This is the current data PVC mount.
-location = /nextclouddata {
-    return 404;
-}
-
-location ^~ /nextclouddata/ {
+# Nextcloud data directory of this image (instead of the upstream `data`).
+location ^~ /nextclouddata {
     return 404;
 }
 
@@ -125,7 +115,6 @@ location ~ \.php(?:$|/) {
     include fastcgi_params;
     fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     fastcgi_param PATH_INFO $path_info;
-    # fastcgi_param HTTPS on;
 
     fastcgi_param modHeadersAvailable true;         # Avoid sending the security headers twice
     fastcgi_param front_controller_active true;     # Enable pretty urls
@@ -133,6 +122,7 @@ location ~ \.php(?:$|/) {
 
     fastcgi_intercept_errors on;
     fastcgi_request_buffering off;
+    fastcgi_max_temp_file_size 0;   # Do not buffer downloads to disk
 }
 
 location ~ \.(?:css|js|mjs|svg|gif|ico|jpg|png|webp|wasm|tflite|map|ogg|flac|mp4|webm)$ {
